@@ -1,0 +1,39 @@
+FROM alpine:latest
+
+RUN apk update
+
+# Default to UTF-8 file.encoding
+ENV LANG C.UTF-8
+
+RUN apk add subversion \
+        ca-certificates \
+        curl \
+        openjdk8-jre
+
+RUN apk add docker
+RUN apk add openrc
+RUN rc-update add docker boot
+#RUN service docker start
+
+# Have to disable MPROTECT otherwise java VM can't allocate memory to the java process
+# see https://www.theshell.guru/native-memory-allocation-mmap-failed-to-map-xx-bytes-for-committing-reserved-memory-jdk-1-8-centos-6-7/
+# for details
+RUN apk add paxctl
+RUN paxctl -c /usr/bin/java
+RUN paxctl -m /usr/bin/java
+
+# in order to use the wrapper bamboo-agent-installer, we need glibc. See
+# https://community.atlassian.com/t5/Bamboo-questions/Bamboo-remote-agent-5-13-0-1-not-working-inside-alpine-3-4/qaq-p/353526
+# for details on this. Basically, Alpine doesn't natively ship with it.
+
+COPY glibc-2.26-r0.apk /root/glibc-2.26-r0.apk
+
+RUN apk --allow-untrusted add /root/glibc-2.26-r0.apk
+
+COPY atlassian-bamboo-agent-installer-6.3.0.jar /root/atlassian-bamboo-agent-installer-6.3.0.jar
+
+# Define additional metadata for our image.
+VOLUME /var/lib/docker
+
+#RUN java -jar atlassian-bamboo-agent-installer-6.3.0.jar http://172.31.1.1:8085/agentServer/
+ENTRYPOINT java -jar /root/atlassian-bamboo-agent-installer-6.3.0.jar https://172.31.1.1:8085/agentServer/
